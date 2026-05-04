@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+#
+# pre-commit hook — prevent secrets from being committed.
+#
+# Scans staged files for patterns that look like:
+#   - Proxmox API token secrets (UUID-shaped values in config context)
+#   - PEM private keys
+#   - Common secret env var / config assignments
+#   - Platform tokens (GitHub, GitLab, AWS)
+#
+# Install: make setup-hooks   (or: git config core.hooksPath githooks)
+
+set -euo pipefail
+
+RED='\033[0;31m'
+NC='\033[0m'
+
+# Files to always skip (binary, lock files, the hook itself, license)
+SKIP_RE='\.(png|jpg|jpeg|gif|ico|woff2?|ttf|eot|lock|sum)$|githooks/pre-commit$|^LICENSE$'
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM || true)
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+FOUND=0
+
+# check LABEL GREP_FLAGS PATTERN
+check() {
+  local label="$1" flags="$2" pattern="$3"
+  while IFS= read -r file; do
+    [[ -z "$file" ]] && continue
+    echo "$file" | grep -qE "$SKIP_RE" && continue
+
+    MATCHES=$(git show ":${file}" 2>/dev/null | grep -n $flags -E -e "$pattern" 2>/dev/null || true)
+    if [ -n "$MATCHES" ]; then
+      echo -e "${RED}[SECRET DETECTED]${NC} ${label}"
+      echo "  File: ${file}"
+      echo "$MATCHES" | head -3 | sed 's/^/  /'
+      echo ""
+      FOUND=1
+    fi
+  done <<< "$STAGED"
+}
+
+# Case-sensitive patterns
+check "Proxmox token_secret value" "" \
+  'token_secret:[[:space:]]*[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-'
+
+check "PEM private key" "" \
+  '-----BEGIN[[:space:]]*(RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----'
+
+check "GitHub / GitLab token" "" \
+  '(ghp_|gho_|ghu_|ghs_|ghr_|glpat-)[A-Za-z0-9_]{10,}'
+
+# Case-insensitive patterns
+check "AWS secret access key" "-i" \
+  '(aws_secret_access_key|aws_secret)[[:space:]]*[:=][[:space:]]*[^[:space:]]+'
+
+check "Generic secret/password assignment" "-i" \
+  "(password|secret|api_key|apikey|access_token)[[:space:]]*[:=][[:space:]]*['\"]?[A-Za-z0-9/+=]{16,}"
+
+if [ "$FOUND" -ne 0 ]; then
+  echo -e "${RED}Commit blocked — secrets detected in staged files.${NC}"
+  echo ""
+  echo "Options:"
+  echo "  1. Remove the secret and re-stage the file"
+  echo "  2. Use 'git commit --no-verify' to bypass (not recommended)"
+  echo ""
+  exit 1
+fi

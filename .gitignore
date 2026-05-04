@@ -1,0 +1,24 @@
+# Build artifacts
+proxmox-mcp
+*.exe
+
+# Go
+*.test
+*.out
+cover.html
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config files that may contain secrets
+.proxmox.yaml
+*.pem
+*.key
