@@ -162,6 +162,57 @@ func vmActionHandler(reg *HostRegistry, action string) func(context.Context, *mc
 	}
 }
 
+// -- delete_vm --
+
+type DeleteVMInput struct {
+	Host         string `json:"host,omitempty" jsonschema:"Proxmox host name from config (uses default if omitted)"`
+	Node         string `json:"node,omitempty" jsonschema:"node name (optional — auto-resolved from VMID if omitted)"`
+	VMID         int    `json:"vmid" jsonschema:"VM ID,required"`
+	DestroyDisks *bool  `json:"destroy-unreferenced-disks,omitempty" jsonschema:"destroy unreferenced disks owned by the VM (default true)"`
+	Purge        *bool  `json:"purge,omitempty" jsonschema:"remove from replication and backup jobs (default true)"`
+}
+
+func boolParamDefault(b *bool, defaultVal bool) string {
+	v := defaultVal
+	if b != nil {
+		v = *b
+	}
+	if v {
+		return "1"
+	}
+	return "0"
+}
+
+func deleteVMHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, DeleteVMInput) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input DeleteVMInput) (*mcp.CallToolResult, any, error) {
+		client, host, err := reg.GetClient(input.Host)
+		if err != nil {
+			return nil, VMActionOutput{}, err
+		}
+		node, err := resolveVMNode(ctx, client, input.Node, input.VMID)
+		if err != nil {
+			return nil, VMActionOutput{}, err
+		}
+
+		path := fmt.Sprintf("/nodes/%s/qemu/%d?destroy-unreferenced-disks=%s&purge=%s",
+			node, input.VMID,
+			boolParamDefault(input.DestroyDisks, true),
+			boolParamDefault(input.Purge, true),
+		)
+		var upid string
+		if err := client.Delete(ctx, path, &upid); err != nil {
+			return nil, VMActionOutput{}, fmt.Errorf("failed to delete VM %d: %w", input.VMID, err)
+		}
+		return nil, VMActionOutput{
+			Host:   host,
+			VMID:   input.VMID,
+			Node:   node,
+			Action: "delete",
+			UPID:   upid,
+		}, nil
+	}
+}
+
 func RegisterVMTools(server *mcp.Server, reg *HostRegistry) {
 	mcp.AddTool[ListVMsInput, any](server, &mcp.Tool{
 		Name:        "list_vms",
@@ -192,4 +243,9 @@ func RegisterVMTools(server *mcp.Server, reg *HostRegistry) {
 		Name:        "shutdown_vm",
 		Description: "Gracefully shutdown a VM via ACPI. Returns a task UPID. Node is auto-resolved if omitted.",
 	}, vmActionHandler(reg, "shutdown"))
+
+	mcp.AddTool[DeleteVMInput, any](server, &mcp.Tool{
+		Name:        "delete_vm",
+		Description: "Delete a VM and its disks. VM must be stopped first. Returns a task UPID. Node is auto-resolved if omitted.",
+	}, deleteVMHandler(reg))
 }

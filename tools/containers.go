@@ -160,6 +160,46 @@ func containerActionHandler(reg *HostRegistry, action string) func(context.Conte
 	}
 }
 
+// -- delete_container --
+
+type DeleteContainerInput struct {
+	Host         string `json:"host,omitempty" jsonschema:"Proxmox host name from config (uses default if omitted)"`
+	Node         string `json:"node,omitempty" jsonschema:"node name (optional — auto-resolved from VMID if omitted)"`
+	VMID         int    `json:"vmid" jsonschema:"container ID,required"`
+	DestroyDisks *bool  `json:"destroy-unreferenced-disks,omitempty" jsonschema:"destroy unreferenced disks owned by the container (default true)"`
+	Purge        *bool  `json:"purge,omitempty" jsonschema:"remove from replication and backup jobs (default true)"`
+}
+
+func deleteContainerHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, DeleteContainerInput) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input DeleteContainerInput) (*mcp.CallToolResult, any, error) {
+		client, host, err := reg.GetClient(input.Host)
+		if err != nil {
+			return nil, ContainerActionOutput{}, err
+		}
+		node, err := resolveContainerNode(ctx, client, input.Node, input.VMID)
+		if err != nil {
+			return nil, ContainerActionOutput{}, err
+		}
+
+		path := fmt.Sprintf("/nodes/%s/lxc/%d?destroy-unreferenced-disks=%s&purge=%s",
+			node, input.VMID,
+			boolParamDefault(input.DestroyDisks, true),
+			boolParamDefault(input.Purge, true),
+		)
+		var upid string
+		if err := client.Delete(ctx, path, &upid); err != nil {
+			return nil, ContainerActionOutput{}, fmt.Errorf("failed to delete container %d: %w", input.VMID, err)
+		}
+		return nil, ContainerActionOutput{
+			Host:   host,
+			VMID:   input.VMID,
+			Node:   node,
+			Action: "delete",
+			UPID:   upid,
+		}, nil
+	}
+}
+
 func RegisterContainerTools(server *mcp.Server, reg *HostRegistry) {
 	mcp.AddTool[ListContainersInput, any](server, &mcp.Tool{
 		Name:        "list_containers",
@@ -190,4 +230,9 @@ func RegisterContainerTools(server *mcp.Server, reg *HostRegistry) {
 		Name:        "shutdown_container",
 		Description: "Gracefully shutdown an LXC container. Returns a task UPID. Node is auto-resolved if omitted.",
 	}, containerActionHandler(reg, "shutdown"))
+
+	mcp.AddTool[DeleteContainerInput, any](server, &mcp.Tool{
+		Name:        "delete_container",
+		Description: "Delete an LXC container and its disks. Container must be stopped first. Returns a task UPID. Node is auto-resolved if omitted.",
+	}, deleteContainerHandler(reg))
 }

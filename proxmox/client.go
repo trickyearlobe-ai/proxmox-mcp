@@ -55,6 +55,11 @@ func (c *Client) Post(ctx context.Context, path string, dest any) error {
 	return c.do(ctx, http.MethodPost, path, dest)
 }
 
+// Delete performs a DELETE request and unmarshals the "data" field into dest.
+func (c *Client) Delete(ctx context.Context, path string, dest any) error {
+	return c.do(ctx, http.MethodDelete, path, dest)
+}
+
 func (c *Client) do(ctx context.Context, method, path string, dest any) error {
 	url := c.baseURL + "/api2/json" + path
 
