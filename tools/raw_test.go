@@ -54,19 +54,49 @@ func TestRawAPIHandler_DELETE(t *testing.T) {
 	}
 }
 
+func TestRawAPIHandler_PUT(t *testing.T) {
+	var gotMethod string
+	var gotBody string
+	reg := newTestRegistry(t, func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		buf := make([]byte, 1024)
+		n, _ := r.Body.Read(buf)
+		gotBody = string(buf[:n])
+		w.WriteHeader(200)
+		w.Write([]byte(`{"data": null}`))
+	})
+
+	handler := rawAPIHandler(reg)
+	input := RawAPIInput{Method: "PUT", Path: "/nodes/pve1/qemu/100/config", Body: "memory=4096"}
+	_, output, err := handler(context.Background(), nil, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "PUT" {
+		t.Errorf("method = %s, want PUT", gotMethod)
+	}
+	if gotBody != "memory=4096" {
+		t.Errorf("body = %q, want memory=4096", gotBody)
+	}
+	result := output.(RawAPIOutput)
+	if result.StatusCode != 200 {
+		t.Errorf("status = %d, want 200", result.StatusCode)
+	}
+}
+
 func TestRawAPIHandler_InvalidMethod(t *testing.T) {
 	reg := newTestRegistry(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 	})
 
 	handler := rawAPIHandler(reg)
-	input := RawAPIInput{Method: "PUT", Path: "/test"}
+	input := RawAPIInput{Method: "PATCH", Path: "/test"}
 	_, _, err := handler(context.Background(), nil, input)
 	if err == nil {
-		t.Fatal("expected error for PUT method")
+		t.Fatal("expected error for PATCH method")
 	}
-	if !containsSubstr(err.Error(), "PUT") {
-		t.Errorf("error should mention PUT: %v", err)
+	if !containsSubstr(err.Error(), "PATCH") {
+		t.Errorf("error should mention PATCH: %v", err)
 	}
 }
 

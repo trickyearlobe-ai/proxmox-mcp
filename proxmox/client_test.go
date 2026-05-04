@@ -134,6 +134,25 @@ func TestClient_Delete(t *testing.T) {
 	}
 }
 
+func TestClient_Put(t *testing.T) {
+	var gotMethod string
+	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": nil,
+		})
+	})
+
+	err := client.Put(context.Background(), "/nodes/pve1/qemu/100/config", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if gotMethod != "PUT" {
+		t.Errorf("method = %s, want PUT", gotMethod)
+	}
+}
+
 func TestClient_GetRaw(t *testing.T) {
 	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]any{
@@ -277,6 +296,38 @@ func TestClient_DoRaw_DELETE(t *testing.T) {
 	}
 	if body == "" {
 		t.Error("body should not be empty")
+	}
+}
+
+func TestClient_DoRaw_PUT_WithBody(t *testing.T) {
+	var gotMethod string
+	var gotBody string
+	var gotContentType string
+	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotContentType = r.Header.Get("Content-Type")
+		buf := make([]byte, 1024)
+		n, _ := r.Body.Read(buf)
+		gotBody = string(buf[:n])
+		w.WriteHeader(200)
+		w.Write([]byte(`{"data": null}`))
+	})
+
+	status, _, err := client.DoRaw(context.Background(), "PUT", "/nodes/pve1/qemu/100/config", "memory=4096&cores=2")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "PUT" {
+		t.Errorf("method = %s, want PUT", gotMethod)
+	}
+	if status != 200 {
+		t.Errorf("status = %d, want 200", status)
+	}
+	if gotContentType != "application/x-www-form-urlencoded" {
+		t.Errorf("Content-Type = %q", gotContentType)
+	}
+	if gotBody != "memory=4096&cores=2" {
+		t.Errorf("body = %q", gotBody)
 	}
 }
 

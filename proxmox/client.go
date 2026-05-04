@@ -60,6 +60,11 @@ func (c *Client) Delete(ctx context.Context, path string, dest any) error {
 	return c.do(ctx, http.MethodDelete, path, dest)
 }
 
+// Put performs a PUT request and unmarshals the "data" field into dest.
+func (c *Client) Put(ctx context.Context, path string, dest any) error {
+	return c.do(ctx, http.MethodPut, path, dest)
+}
+
 func (c *Client) do(ctx context.Context, method, path string, dest any) error {
 	url := c.baseURL + "/api2/json" + path
 
