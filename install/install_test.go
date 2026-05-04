@@ -61,7 +61,7 @@ func TestBuildEntry_CopilotCLI(t *testing.T) {
 	ide := IDE{Name: "Copilot CLI", TopLevelKey: "mcpServers", IsCopilot: true}
 	entry := buildEntry(ide, "/bin/proxmox-mcp")
 
-	if entry["type"] != "stdio" {
+	if entry["type"] != "local" {
 		t.Errorf("Copilot entry type = %v", entry["type"])
 	}
 	for _, key := range []string{"args", "env", "tools"} {
@@ -299,7 +299,7 @@ func TestInstallIDE_CopilotCLI_ExtraFields(t *testing.T) {
 	servers := cfg["mcpServers"].(map[string]any)
 	entry := servers["proxmox"].(map[string]any)
 
-	if entry["type"] != "stdio" {
+	if entry["type"] != "local" {
 		t.Errorf("Copilot type = %v", entry["type"])
 	}
 	for _, key := range []string{"args", "env", "tools"} {

@@ -32,8 +32,8 @@ type StorageSummary struct {
 	UsedPct float64 `json:"used_fraction" jsonschema:"used space as fraction (0.0 to 1.0)"`
 }
 
-func listStorageHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, ListStorageInput) (*mcp.CallToolResult, ListStorageOutput, error) {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input ListStorageInput) (*mcp.CallToolResult, ListStorageOutput, error) {
+func listStorageHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, ListStorageInput) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input ListStorageInput) (*mcp.CallToolResult, any, error) {
 		client, host, err := reg.GetClient(input.Host)
 		if err != nil {
 			return nil, ListStorageOutput{}, err
@@ -66,8 +66,8 @@ type TaskStatusOutput struct {
 	EndTime    int64  `json:"endtime,omitempty" jsonschema:"task end time as Unix timestamp (0 if still running)"`
 }
 
-func getTaskStatusHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, GetTaskStatusInput) (*mcp.CallToolResult, TaskStatusOutput, error) {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input GetTaskStatusInput) (*mcp.CallToolResult, TaskStatusOutput, error) {
+func getTaskStatusHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, GetTaskStatusInput) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input GetTaskStatusInput) (*mcp.CallToolResult, any, error) {
 		client, host, err := reg.GetClient(input.Host)
 		if err != nil {
 			return nil, TaskStatusOutput{}, err
@@ -83,12 +83,12 @@ func getTaskStatusHandler(reg *HostRegistry) func(context.Context, *mcp.CallTool
 }
 
 func RegisterStorageTools(server *mcp.Server, reg *HostRegistry) {
-	mcp.AddTool[ListStorageInput, ListStorageOutput](server, &mcp.Tool{
+	mcp.AddTool[ListStorageInput, any](server, &mcp.Tool{
 		Name:        "list_storage",
 		Description: "List storage pools on a specific Proxmox node with capacity info",
 	}, listStorageHandler(reg))
 
-	mcp.AddTool[GetTaskStatusInput, TaskStatusOutput](server, &mcp.Tool{
+	mcp.AddTool[GetTaskStatusInput, any](server, &mcp.Tool{
 		Name:        "get_task_status",
 		Description: "Get status of a Proxmox background task by its UPID. Use this to check if start/stop/shutdown operations have completed.",
 	}, getTaskStatusHandler(reg))

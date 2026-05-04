@@ -32,8 +32,8 @@ type ContainerSummary struct {
 	Uptime int64   `json:"uptime" jsonschema:"uptime in seconds"`
 }
 
-func listContainersHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, ListContainersInput) (*mcp.CallToolResult, ListContainersOutput, error) {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input ListContainersInput) (*mcp.CallToolResult, ListContainersOutput, error) {
+func listContainersHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, ListContainersInput) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input ListContainersInput) (*mcp.CallToolResult, any, error) {
 		client, host, err := reg.GetClient(input.Host)
 		if err != nil {
 			return nil, ListContainersOutput{}, err
@@ -74,8 +74,8 @@ func resolveContainerNode(ctx context.Context, client *proxmox.Client, node stri
 	return client.ResolveNode(ctx, vmid)
 }
 
-func getContainerStatusHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, ContainerIdentifier) (*mcp.CallToolResult, ContainerStatusOutput, error) {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input ContainerIdentifier) (*mcp.CallToolResult, ContainerStatusOutput, error) {
+func getContainerStatusHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, ContainerIdentifier) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input ContainerIdentifier) (*mcp.CallToolResult, any, error) {
 		client, host, err := reg.GetClient(input.Host)
 		if err != nil {
 			return nil, ContainerStatusOutput{}, err
@@ -103,8 +103,8 @@ type ContainerConfigOutput struct {
 	Config string `json:"config" jsonschema:"container configuration as JSON (contains dynamic keys like net0, mp0, etc.)"`
 }
 
-func getContainerConfigHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, ContainerIdentifier) (*mcp.CallToolResult, ContainerConfigOutput, error) {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input ContainerIdentifier) (*mcp.CallToolResult, ContainerConfigOutput, error) {
+func getContainerConfigHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, ContainerIdentifier) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input ContainerIdentifier) (*mcp.CallToolResult, any, error) {
 		client, host, err := reg.GetClient(input.Host)
 		if err != nil {
 			return nil, ContainerConfigOutput{}, err
@@ -136,8 +136,8 @@ type ContainerActionOutput struct {
 	UPID   string `json:"upid" jsonschema:"Proxmox task ID — use get_task_status to track completion"`
 }
 
-func containerActionHandler(reg *HostRegistry, action string) func(context.Context, *mcp.CallToolRequest, ContainerIdentifier) (*mcp.CallToolResult, ContainerActionOutput, error) {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input ContainerIdentifier) (*mcp.CallToolResult, ContainerActionOutput, error) {
+func containerActionHandler(reg *HostRegistry, action string) func(context.Context, *mcp.CallToolRequest, ContainerIdentifier) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input ContainerIdentifier) (*mcp.CallToolResult, any, error) {
 		client, host, err := reg.GetClient(input.Host)
 		if err != nil {
 			return nil, ContainerActionOutput{}, err
@@ -161,32 +161,32 @@ func containerActionHandler(reg *HostRegistry, action string) func(context.Conte
 }
 
 func RegisterContainerTools(server *mcp.Server, reg *HostRegistry) {
-	mcp.AddTool[ListContainersInput, ListContainersOutput](server, &mcp.Tool{
+	mcp.AddTool[ListContainersInput, any](server, &mcp.Tool{
 		Name:        "list_containers",
 		Description: "List all LXC containers on a specific Proxmox node",
 	}, listContainersHandler(reg))
 
-	mcp.AddTool[ContainerIdentifier, ContainerStatusOutput](server, &mcp.Tool{
+	mcp.AddTool[ContainerIdentifier, any](server, &mcp.Tool{
 		Name:        "get_container_status",
 		Description: "Get current status of an LXC container. Node is auto-resolved if omitted.",
 	}, getContainerStatusHandler(reg))
 
-	mcp.AddTool[ContainerIdentifier, ContainerConfigOutput](server, &mcp.Tool{
+	mcp.AddTool[ContainerIdentifier, any](server, &mcp.Tool{
 		Name:        "get_container_config",
 		Description: "Get full configuration of an LXC container as JSON. Node is auto-resolved if omitted.",
 	}, getContainerConfigHandler(reg))
 
-	mcp.AddTool[ContainerIdentifier, ContainerActionOutput](server, &mcp.Tool{
+	mcp.AddTool[ContainerIdentifier, any](server, &mcp.Tool{
 		Name:        "start_container",
 		Description: "Start an LXC container. Returns a task UPID for tracking. Node is auto-resolved if omitted.",
 	}, containerActionHandler(reg, "start"))
 
-	mcp.AddTool[ContainerIdentifier, ContainerActionOutput](server, &mcp.Tool{
+	mcp.AddTool[ContainerIdentifier, any](server, &mcp.Tool{
 		Name:        "stop_container",
 		Description: "Hard stop an LXC container. Returns a task UPID. Node is auto-resolved if omitted.",
 	}, containerActionHandler(reg, "stop"))
 
-	mcp.AddTool[ContainerIdentifier, ContainerActionOutput](server, &mcp.Tool{
+	mcp.AddTool[ContainerIdentifier, any](server, &mcp.Tool{
 		Name:        "shutdown_container",
 		Description: "Gracefully shutdown an LXC container. Returns a task UPID. Node is auto-resolved if omitted.",
 	}, containerActionHandler(reg, "shutdown"))

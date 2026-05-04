@@ -26,8 +26,8 @@ type NodeSummary struct {
 	Uptime  int64   `json:"uptime" jsonschema:"uptime in seconds"`
 }
 
-func listNodesHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, HostInput) (*mcp.CallToolResult, ListNodesOutput, error) {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input HostInput) (*mcp.CallToolResult, ListNodesOutput, error) {
+func listNodesHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, HostInput) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input HostInput) (*mcp.CallToolResult, any, error) {
 		client, host, err := reg.GetClient(input.Host)
 		if err != nil {
 			return nil, ListNodesOutput{}, err
@@ -53,8 +53,8 @@ type NodeStatusOutput struct {
 	Status     string `json:"status" jsonschema:"raw JSON status (contains deeply nested dynamic fields)"`
 }
 
-func getNodeStatusHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, GetNodeStatusInput) (*mcp.CallToolResult, NodeStatusOutput, error) {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input GetNodeStatusInput) (*mcp.CallToolResult, NodeStatusOutput, error) {
+func getNodeStatusHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, GetNodeStatusInput) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input GetNodeStatusInput) (*mcp.CallToolResult, any, error) {
 		client, host, err := reg.GetClient(input.Host)
 		if err != nil {
 			return nil, NodeStatusOutput{}, err
@@ -72,12 +72,12 @@ func getNodeStatusHandler(reg *HostRegistry) func(context.Context, *mcp.CallTool
 }
 
 func RegisterNodeTools(server *mcp.Server, reg *HostRegistry) {
-	mcp.AddTool[HostInput, ListNodesOutput](server, &mcp.Tool{
+	mcp.AddTool[HostInput, any](server, &mcp.Tool{
 		Name:        "list_nodes",
 		Description: "List all nodes in the Proxmox cluster with status, CPU, memory, and disk usage",
 	}, listNodesHandler(reg))
 
-	mcp.AddTool[GetNodeStatusInput, NodeStatusOutput](server, &mcp.Tool{
+	mcp.AddTool[GetNodeStatusInput, any](server, &mcp.Tool{
 		Name:        "get_node_status",
 		Description: "Get detailed status of a specific Proxmox node including CPU, memory, load, and version info. Returns raw JSON due to deeply nested dynamic fields.",
 	}, getNodeStatusHandler(reg))

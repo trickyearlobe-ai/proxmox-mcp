@@ -30,8 +30,8 @@ type ClusterStatusEntry struct {
 	Version int    `json:"version,omitempty" jsonschema:"cluster config version"`
 }
 
-func getClusterStatusHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, HostInput) (*mcp.CallToolResult, ClusterStatusOutput, error) {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input HostInput) (*mcp.CallToolResult, ClusterStatusOutput, error) {
+func getClusterStatusHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, HostInput) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input HostInput) (*mcp.CallToolResult, any, error) {
 		client, host, err := reg.GetClient(input.Host)
 		if err != nil {
 			return nil, ClusterStatusOutput{}, err
@@ -73,8 +73,8 @@ type ClusterResource struct {
 	Template int     `json:"template,omitempty" jsonschema:"1 if template, 0 otherwise"`
 }
 
-func listClusterResourcesHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, ListClusterResourcesInput) (*mcp.CallToolResult, ClusterResourcesOutput, error) {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input ListClusterResourcesInput) (*mcp.CallToolResult, ClusterResourcesOutput, error) {
+func listClusterResourcesHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, ListClusterResourcesInput) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input ListClusterResourcesInput) (*mcp.CallToolResult, any, error) {
 		client, host, err := reg.GetClient(input.Host)
 		if err != nil {
 			return nil, ClusterResourcesOutput{}, err
@@ -92,12 +92,12 @@ func listClusterResourcesHandler(reg *HostRegistry) func(context.Context, *mcp.C
 }
 
 func RegisterClusterTools(server *mcp.Server, reg *HostRegistry) {
-	mcp.AddTool[HostInput, ClusterStatusOutput](server, &mcp.Tool{
+	mcp.AddTool[HostInput, any](server, &mcp.Tool{
 		Name:        "get_cluster_status",
 		Description: "Get Proxmox cluster status including node membership and health",
 	}, getClusterStatusHandler(reg))
 
-	mcp.AddTool[ListClusterResourcesInput, ClusterResourcesOutput](server, &mcp.Tool{
+	mcp.AddTool[ListClusterResourcesInput, any](server, &mcp.Tool{
 		Name:        "list_cluster_resources",
 		Description: "List all resources (VMs, containers, storage, nodes) across the Proxmox cluster. Optionally filter by type.",
 	}, listClusterResourcesHandler(reg))

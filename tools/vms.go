@@ -32,8 +32,8 @@ type VMSummary struct {
 	Uptime int64   `json:"uptime" jsonschema:"uptime in seconds"`
 }
 
-func listVMsHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, ListVMsInput) (*mcp.CallToolResult, ListVMsOutput, error) {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input ListVMsInput) (*mcp.CallToolResult, ListVMsOutput, error) {
+func listVMsHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, ListVMsInput) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input ListVMsInput) (*mcp.CallToolResult, any, error) {
 		client, host, err := reg.GetClient(input.Host)
 		if err != nil {
 			return nil, ListVMsOutput{}, err
@@ -76,8 +76,8 @@ func resolveVMNode(ctx context.Context, client *proxmox.Client, node string, vmi
 	return client.ResolveNode(ctx, vmid)
 }
 
-func getVMStatusHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, VMIdentifier) (*mcp.CallToolResult, VMStatusOutput, error) {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input VMIdentifier) (*mcp.CallToolResult, VMStatusOutput, error) {
+func getVMStatusHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, VMIdentifier) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input VMIdentifier) (*mcp.CallToolResult, any, error) {
 		client, host, err := reg.GetClient(input.Host)
 		if err != nil {
 			return nil, VMStatusOutput{}, err
@@ -105,8 +105,8 @@ type VMConfigOutput struct {
 	Config string `json:"config" jsonschema:"VM configuration as JSON (contains dynamic keys like net0, scsi0, etc.)"`
 }
 
-func getVMConfigHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, VMIdentifier) (*mcp.CallToolResult, VMConfigOutput, error) {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input VMIdentifier) (*mcp.CallToolResult, VMConfigOutput, error) {
+func getVMConfigHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, VMIdentifier) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input VMIdentifier) (*mcp.CallToolResult, any, error) {
 		client, host, err := reg.GetClient(input.Host)
 		if err != nil {
 			return nil, VMConfigOutput{}, err
@@ -138,8 +138,8 @@ type VMActionOutput struct {
 	UPID   string `json:"upid" jsonschema:"Proxmox task ID — use get_task_status to track completion"`
 }
 
-func vmActionHandler(reg *HostRegistry, action string) func(context.Context, *mcp.CallToolRequest, VMIdentifier) (*mcp.CallToolResult, VMActionOutput, error) {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input VMIdentifier) (*mcp.CallToolResult, VMActionOutput, error) {
+func vmActionHandler(reg *HostRegistry, action string) func(context.Context, *mcp.CallToolRequest, VMIdentifier) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input VMIdentifier) (*mcp.CallToolResult, any, error) {
 		client, host, err := reg.GetClient(input.Host)
 		if err != nil {
 			return nil, VMActionOutput{}, err
@@ -163,32 +163,32 @@ func vmActionHandler(reg *HostRegistry, action string) func(context.Context, *mc
 }
 
 func RegisterVMTools(server *mcp.Server, reg *HostRegistry) {
-	mcp.AddTool[ListVMsInput, ListVMsOutput](server, &mcp.Tool{
+	mcp.AddTool[ListVMsInput, any](server, &mcp.Tool{
 		Name:        "list_vms",
 		Description: "List all QEMU/KVM virtual machines on a specific Proxmox node",
 	}, listVMsHandler(reg))
 
-	mcp.AddTool[VMIdentifier, VMStatusOutput](server, &mcp.Tool{
+	mcp.AddTool[VMIdentifier, any](server, &mcp.Tool{
 		Name:        "get_vm_status",
 		Description: "Get current status of a VM. Node is auto-resolved if omitted.",
 	}, getVMStatusHandler(reg))
 
-	mcp.AddTool[VMIdentifier, VMConfigOutput](server, &mcp.Tool{
+	mcp.AddTool[VMIdentifier, any](server, &mcp.Tool{
 		Name:        "get_vm_config",
 		Description: "Get full configuration of a VM as JSON. Node is auto-resolved if omitted.",
 	}, getVMConfigHandler(reg))
 
-	mcp.AddTool[VMIdentifier, VMActionOutput](server, &mcp.Tool{
+	mcp.AddTool[VMIdentifier, any](server, &mcp.Tool{
 		Name:        "start_vm",
 		Description: "Start a VM. Returns a task UPID for tracking. Node is auto-resolved if omitted.",
 	}, vmActionHandler(reg, "start"))
 
-	mcp.AddTool[VMIdentifier, VMActionOutput](server, &mcp.Tool{
+	mcp.AddTool[VMIdentifier, any](server, &mcp.Tool{
 		Name:        "stop_vm",
 		Description: "Hard stop a VM (like pulling the power cord). Returns a task UPID. Node is auto-resolved if omitted.",
 	}, vmActionHandler(reg, "stop"))
 
-	mcp.AddTool[VMIdentifier, VMActionOutput](server, &mcp.Tool{
+	mcp.AddTool[VMIdentifier, any](server, &mcp.Tool{
 		Name:        "shutdown_vm",
 		Description: "Gracefully shutdown a VM via ACPI. Returns a task UPID. Node is auto-resolved if omitted.",
 	}, vmActionHandler(reg, "shutdown"))

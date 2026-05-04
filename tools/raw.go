@@ -21,8 +21,8 @@ type RawAPIOutput struct {
 	Body       string `json:"body" jsonschema:"raw JSON response body"`
 }
 
-func rawAPIHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, RawAPIInput) (*mcp.CallToolResult, RawAPIOutput, error) {
-	return func(ctx context.Context, req *mcp.CallToolRequest, input RawAPIInput) (*mcp.CallToolResult, RawAPIOutput, error) {
+func rawAPIHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, RawAPIInput) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input RawAPIInput) (*mcp.CallToolResult, any, error) {
 		client, host, err := reg.GetClient(input.Host)
 		if err != nil {
 			return nil, RawAPIOutput{}, err
@@ -51,7 +51,7 @@ func rawAPIHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest
 }
 
 func RegisterRawTools(server *mcp.Server, reg *HostRegistry) {
-	mcp.AddTool[RawAPIInput, RawAPIOutput](server, &mcp.Tool{
+	mcp.AddTool[RawAPIInput, any](server, &mcp.Tool{
 		Name:        "raw_api_request",
 		Description: "Make a raw API request to the Proxmox REST API. Use this to explore endpoints not covered by other tools. Path is relative to /api2/json (e.g. /nodes, /cluster/resources).",
 	}, rawAPIHandler(reg))

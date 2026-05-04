@@ -236,10 +236,10 @@ func buildEntry(ide IDE, binPath string) map[string]any {
 
 	// Copilot CLI requires type, args, env, tools
 	if ide.IsCopilot {
-		entry["type"] = "stdio"
+		entry["type"] = "local"
 		entry["args"] = []string{}
 		entry["env"] = map[string]string{}
-		entry["tools"] = []string{}
+		entry["tools"] = []string{"*"}
 	}
 
 	return entry

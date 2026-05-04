@@ -36,12 +36,13 @@ clean: ## Remove built binary
 
 # ── Install / Uninstall ──────────────────────────────────────────────
 .PHONY: install
-install: build ## Build and install into IDEs
-	./$(BINARY) --install
+install: ## Install binary to GOPATH/bin and register with IDEs
+	go install -ldflags "$(LDFLAGS)" .
+	$(BINARY) --install
 
 .PHONY: uninstall
-uninstall: build ## Build and uninstall from IDEs
-	./$(BINARY) --uninstall
+uninstall: ## Unregister from IDEs
+	$(BINARY) --uninstall
 
 .PHONY: init
 init: build ## Build and create ~/.proxmox.yaml template
