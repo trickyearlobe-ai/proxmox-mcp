@@ -111,6 +111,29 @@ func TestClient_Post(t *testing.T) {
 	}
 }
 
+func TestClient_Delete(t *testing.T) {
+	var gotMethod string
+	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": "UPID:pve1:00005678:ABCDEF01:663E5678:qmdestroy:100:root@pam:",
+		})
+	})
+
+	var upid string
+	err := client.Delete(context.Background(), "/nodes/pve1/qemu/100", &upid)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if gotMethod != "DELETE" {
+		t.Errorf("method = %s, want DELETE", gotMethod)
+	}
+	if upid == "" {
+		t.Error("upid should not be empty")
+	}
+}
+
 func TestClient_GetRaw(t *testing.T) {
 	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]any{
@@ -229,6 +252,31 @@ func TestClient_DoRaw_ReturnsErrorStatus(t *testing.T) {
 	}
 	if body != "not found" {
 		t.Errorf("body = %q", body)
+	}
+}
+
+func TestClient_DoRaw_DELETE(t *testing.T) {
+	var gotMethod string
+	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		w.WriteHeader(200)
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": "UPID:pve1:00005678:ABCDEF01:663E5678:qmdestroy:100:root@pam:",
+		})
+	})
+
+	status, body, err := client.DoRaw(context.Background(), "DELETE", "/nodes/pve1/qemu/100", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "DELETE" {
+		t.Errorf("method = %s, want DELETE", gotMethod)
+	}
+	if status != 200 {
+		t.Errorf("status = %d, want 200", status)
+	}
+	if body == "" {
+		t.Error("body should not be empty")
 	}
 }
 
