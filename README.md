@@ -4,7 +4,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for [P
 
 ## Features
 
-- **39 tools** covering cluster, node, VM, container, storage, task, provisioning, teardown, serial console, and raw API access
+- **37 tools** covering cluster, node, VM, container, storage, task, provisioning, teardown, serial console, and raw API access
 - **VM provisioning & unattended OS install** — create VMs and install an OS via cloud-init, kickstart, Ubuntu autoinstall, or Windows autounattend
 - **Serial console access** — read from and type into a VM's serial console (drive serial-only guests like network appliances)
 - **Multi-host support** — manage multiple Proxmox clusters from a single server
