@@ -97,6 +97,7 @@ func main() {
 	tools.RegisterAnswerMediaTools(server, reg)
 	tools.RegisterWaitTools(server, reg)
 	tools.RegisterConsoleTools(server, reg)
+	tools.RegisterAccessTools(server, reg)
 	tools.RegisterTeardownTools(server, reg)
 	tools.RegisterRawTools(server, reg)
 

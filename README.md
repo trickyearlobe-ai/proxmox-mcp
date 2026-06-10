@@ -4,7 +4,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for [P
 
 ## Features
 
-- **36 tools** covering cluster, node, VM, container, storage, task, provisioning, teardown, serial console, and raw API access
+- **39 tools** covering cluster, node, VM, container, storage, task, provisioning, teardown, serial console, and raw API access
 - **VM provisioning & unattended OS install** — create VMs and install an OS via cloud-init, kickstart, Ubuntu autoinstall, or Windows autounattend
 - **Serial console access** — read from and type into a VM's serial console (drive serial-only guests like network appliances)
 - **Multi-host support** — manage multiple Proxmox clusters from a single server
@@ -64,6 +64,9 @@ proxmox-mcp --install
 | `delete_vm` | Permanently destroy a stopped VM and its disks |
 | `delete_container` | Permanently destroy a stopped LXC container and its disks |
 | `delete_storage_content` | Delete a single volume (ISO, image, backup) from a storage |
+| `get_token_permissions` | Show a token/user's effective privileges (explain a 403) |
+| `list_acl` | List access-control entries (role → user/token → path) |
+| `list_roles` | List roles and the privileges each grants |
 | `raw_api_request` | Make raw GET/POST/PUT/DELETE requests to the Proxmox API |
 
 All tools accept an optional `host` parameter to target a specific Proxmox host. If omitted, the default host is used.
