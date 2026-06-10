@@ -1,22 +1,25 @@
 package proxmox
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
 
 // Client is a Proxmox VE REST API client.
 type Client struct {
-	baseURL    string
-	tokenID    string
+	baseURL     string
+	tokenID     string
 	tokenSecret string
-	httpClient *http.Client
+	httpClient  *http.Client
 }
 
 // NewClient creates a Client from explicit parameters.
@@ -53,6 +56,11 @@ func (c *Client) Get(ctx context.Context, path string, dest any) error {
 // Post performs a POST request and unmarshals the "data" field into dest.
 func (c *Client) Post(ctx context.Context, path string, dest any) error {
 	return c.do(ctx, http.MethodPost, path, dest)
+}
+
+// Delete performs a DELETE request and unmarshals the "data" field into dest.
+func (c *Client) Delete(ctx context.Context, path string, dest any) error {
+	return c.do(ctx, http.MethodDelete, path, dest)
 }
 
 func (c *Client) do(ctx context.Context, method, path string, dest any) error {
@@ -94,6 +102,111 @@ func (c *Client) do(ctx context.Context, method, path string, dest any) error {
 	}
 
 	return nil
+}
+
+// PostForm performs a POST with a form-urlencoded body and unmarshals "data" into dest.
+func (c *Client) PostForm(ctx context.Context, path string, body url.Values, dest any) error {
+	return c.doForm(ctx, http.MethodPost, path, body, dest)
+}
+
+// PutForm performs a PUT with a form-urlencoded body and unmarshals "data" into dest.
+func (c *Client) PutForm(ctx context.Context, path string, body url.Values, dest any) error {
+	return c.doForm(ctx, http.MethodPut, path, body, dest)
+}
+
+func (c *Client) doForm(ctx context.Context, method, path string, body url.Values, dest any) error {
+	url := c.baseURL + "/api2/json" + path
+
+	req, err := http.NewRequestWithContext(ctx, method, url, strings.NewReader(body.Encode()))
+	if err != nil {
+		return fmt.Errorf("creating request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("PVEAPIToken=%s=%s", c.tokenID, c.tokenSecret))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request to %s %s failed: %w", method, path, err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("reading response body: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("Proxmox API error: %s %s returned %d: %s", method, path, resp.StatusCode, string(respBody))
+	}
+
+	if dest == nil {
+		return nil
+	}
+
+	var envelope apiResponse
+	if err := json.Unmarshal(respBody, &envelope); err != nil {
+		return fmt.Errorf("parsing response JSON: %w", err)
+	}
+
+	if err := json.Unmarshal(envelope.Data, dest); err != nil {
+		return fmt.Errorf("parsing response data: %w", err)
+	}
+
+	return nil
+}
+
+// Upload streams data as a multipart file upload to a storage's upload endpoint and
+// returns the resulting task UPID. content is the Proxmox content type (e.g. "iso").
+func (c *Client) Upload(ctx context.Context, node, storage, content, filename string, data []byte) (string, error) {
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	if err := mw.WriteField("content", content); err != nil {
+		return "", fmt.Errorf("writing content field: %w", err)
+	}
+	fw, err := mw.CreateFormFile("filename", filename)
+	if err != nil {
+		return "", fmt.Errorf("creating file field: %w", err)
+	}
+	if _, err := fw.Write(data); err != nil {
+		return "", fmt.Errorf("writing file data: %w", err)
+	}
+	if err := mw.Close(); err != nil {
+		return "", fmt.Errorf("finalizing multipart body: %w", err)
+	}
+
+	path := fmt.Sprintf("/nodes/%s/storage/%s/upload", node, storage)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api2/json"+path, &buf)
+	if err != nil {
+		return "", fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("PVEAPIToken=%s=%s", c.tokenID, c.tokenSecret))
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("upload to %s failed: %w", path, err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("reading response body: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("Proxmox API error: POST %s returned %d: %s", path, resp.StatusCode, string(respBody))
+	}
+
+	var envelope apiResponse
+	if err := json.Unmarshal(respBody, &envelope); err != nil {
+		return "", fmt.Errorf("parsing response JSON: %w", err)
+	}
+	var upid string
+	if err := json.Unmarshal(envelope.Data, &upid); err != nil {
+		return "", fmt.Errorf("parsing response data: %w", err)
+	}
+	return upid, nil
 }
 
 // GetRaw performs a GET request and returns the raw "data" field as a JSON string.

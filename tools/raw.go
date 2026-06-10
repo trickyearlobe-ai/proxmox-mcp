@@ -29,12 +29,20 @@ func rawAPIHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest
 		}
 
 		method := strings.ToUpper(input.Method)
-		if method != "GET" && method != "POST" {
-			return nil, RawAPIOutput{}, fmt.Errorf("method must be GET or POST, got %q", input.Method)
+		switch method {
+		case "GET", "POST", "PUT", "DELETE":
+		default:
+			return nil, RawAPIOutput{}, fmt.Errorf("method must be GET, POST, PUT, or DELETE, got %q", input.Method)
 		}
 
 		if !strings.HasPrefix(input.Path, "/") {
 			return nil, RawAPIOutput{}, fmt.Errorf("path must start with /, got %q", input.Path)
+		}
+
+		if method != "GET" {
+			if err := confirmWrite(ctx, reg, req, fmt.Sprintf("raw_api_request: %s %s on %s", method, input.Path, host)); err != nil {
+				return nil, RawAPIOutput{}, err
+			}
 		}
 
 		statusCode, body, err := client.DoRaw(ctx, method, input.Path, input.Body)
@@ -53,6 +61,6 @@ func rawAPIHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest
 func RegisterRawTools(server *mcp.Server, reg *HostRegistry) {
 	mcp.AddTool[RawAPIInput, any](server, &mcp.Tool{
 		Name:        "raw_api_request",
-		Description: "Make a raw API request to the Proxmox REST API. Use this to explore endpoints not covered by other tools. Path is relative to /api2/json (e.g. /nodes, /cluster/resources).",
+		Description: "Make a raw API request to the Proxmox REST API (GET, POST, PUT, or DELETE). Use this to reach endpoints not covered by other tools. Path is relative to /api2/json (e.g. /nodes, /cluster/resources).",
 	}, rawAPIHandler(reg))
 }

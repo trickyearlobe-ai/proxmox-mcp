@@ -131,6 +131,24 @@ const configTemplate = `# Proxmox MCP Server Configuration
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # This file configures the proxmox-mcp server.
 # Edit the hosts below to match your Proxmox environment.
+#
+# SAFETY — the API token IS the access boundary
+# ----------------------------------------------
+# This server can create, reconfigure, and power VMs (and provision OSes). The
+# only gate an AI assistant cannot bypass is the Proxmox token's own privileges,
+# because they are enforced by Proxmox, not by this file or the client.
+#
+#   * Read-only token: assign the built-in 'PVEAuditor' role. Listing/status tools
+#     work; every write tool gets a 403 from Proxmox. Use this by default.
+#       pveum user token add user@pam mytoken --privsep 1
+#       pveum acl modify / --roles PVEAuditor --tokens 'user@pam!mytoken'
+#   * Write/provisioning token: assign 'PVEVMAdmin' (+ 'Datastore.AllocateSpace'
+#     on storages you provision into). Only hand the server this when you intend
+#     for it to make changes.
+#
+# Optional extra speed bump: set PROXMOX_CONFIRM_WRITES=true in the environment to
+# make every mutating tool ask for human approval (via MCP elicitation) before it
+# acts. Requires an MCP client that supports elicitation.
 
 # Which host to use when tools don't specify one
 default_host: my-proxmox
@@ -143,10 +161,10 @@ hosts:
     token_secret: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
     tls_insecure: true    # set to false if using valid TLS certificates
 
-  # Add more hosts for multiple clusters or failover
+  # Add more hosts for multiple clusters, or to separate read-only from read-write
   # production:
   #   url: https://pve-prod.example.com:8006
-  #   token_id: admin@pam!automation
+  #   token_id: automation@pam!readonly   # a PVEAuditor token — cannot mutate prod
   #   token_secret: yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy
   #   tls_insecure: false
 `

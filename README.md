@@ -4,7 +4,9 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for [P
 
 ## Features
 
-- **19 tools** covering cluster, node, VM, container, storage, task, and raw API access
+- **35 tools** covering cluster, node, VM, container, storage, task, provisioning, teardown, serial console, and raw API access
+- **VM provisioning & unattended OS install** — create VMs and install an OS via cloud-init, kickstart, Ubuntu autoinstall, or Windows autounattend
+- **Serial console access** — read from and type into a VM's serial console (drive serial-only guests like network appliances)
 - **Multi-host support** — manage multiple Proxmox clusters from a single server
 - **Auto node resolution** — VM/container tools resolve the hosting node from VMID automatically
 - **Task tracking** — lifecycle actions return UPIDs that can be tracked with `get_task_status`
@@ -46,10 +48,92 @@ proxmox-mcp --install
 | `stop_container` | Hard stop a container |
 | `shutdown_container` | Graceful shutdown |
 | `list_storage` | Storage pools on a node with capacity |
+| `list_storage_content` | List ISOs, disk images, templates, and backups on a storage |
 | `get_task_status` | Track async task completion by UPID |
-| `raw_api_request` | Make raw GET/POST requests to the Proxmox API |
+| `create_vm` | Create a new QEMU/KVM VM (returns task UPID) |
+| `update_vm_config` | Set VM config keys — attach disks/CDs, cloud-init, boot order, import disks |
+| `clone_vm` | Clone a VM or template into a new VM |
+| `resize_vm_disk` | Grow a VM disk |
+| `download_url_to_storage` | Download an ISO or cloud image from a URL onto a storage |
+| `create_answer_media` | Package an unattended answer file into a labeled ISO and upload it |
+| `get_guest_agent_info` | Query the guest agent (detect when an OS install has booted) |
+| `wait_for_guest_agent` | Block until the guest agent responds (emits progress), then return its IPs |
+| `read_serial_console` | Read output from a VM's serial console (requires a serial device) |
+| `send_serial_console` | Type into a VM's serial console and capture the response |
+| `delete_vm` | Permanently destroy a stopped VM and its disks |
+| `delete_container` | Permanently destroy a stopped LXC container and its disks |
+| `delete_storage_content` | Delete a single volume (ISO, image, backup) from a storage |
+| `raw_api_request` | Make raw GET/POST/PUT/DELETE requests to the Proxmox API |
 
 All tools accept an optional `host` parameter to target a specific Proxmox host. If omitted, the default host is used.
+
+## Provisioning & unattended OS install
+
+The provisioning tools let an assistant create a VM and bring up an OS end-to-end. Two
+approaches are supported, neither of which needs console interaction:
+
+**Cloud images / cloud-init (or template clone).** Boot a prebuilt cloud image and let
+cloud-init configure it on first boot:
+
+1. `download_url_to_storage` a cloud image (`content: import`) — or `clone_vm` an existing
+   cloud-init template.
+2. `create_vm`, then `update_vm_config` to import the disk
+   (`scsi0: <storage>:0,import-from=<volid>`), set cloud-init keys
+   (`ciuser`, `cipassword`/`sshkeys`, `ipconfig0`), attach a cloud-init drive
+   (`ide2: <storage>:cloudinit`), and set `boot: order=scsi0`.
+3. `resize_vm_disk` if needed, then `start_vm`.
+
+**Real installer + answer file.** Attach the install ISO plus a generated answer ISO that
+the installer auto-discovers by volume label — covers **kickstart** (RHEL/Fedora),
+**Ubuntu autoinstall**, and **Windows autounattend**:
+
+1. `download_url_to_storage` the install ISO (`content: iso`).
+2. `create_answer_media` — the assistant authors the answer file (`ks.cfg` / cloud-init
+   `user-data` / `autounattend.xml`); this packages it into a small ISO with the right
+   label (`OEMDRV` / `CIDATA` / removable media) using Rock Ridge + Joliet so the exact
+   filenames are preserved.
+3. `create_vm`, `update_vm_config` to attach both CDs and set boot order, then `start_vm`.
+4. `wait_for_guest_agent` (or poll `get_guest_agent_info`) until the installed OS reboots
+   and the guest agent responds — it returns the VM's IP addresses.
+
+Notes:
+- `import-from` requires Proxmox VE 8+.
+- For a graphical installer ISO (e.g. AlmaLinux/Fedora) keep the default `vga`; do **not**
+  set `vga=serial0` — the installer renders to VGA and a serial-only display will appear
+  blank. To watch/drive the *installed* system over serial, have the kickstart add
+  `console=ttyS0` to the bootloader and give the VM a `serial0: socket` device.
+- Put `qemu-guest-agent` in the answer file's package list (it's in AppStream / universe,
+  not on minimal install ISOs — add the online repo) so `get_guest_agent_info` works.
+- Windows also needs a `virtio-win.iso` attached as a third CD, with driver paths in
+  `autounattend.xml`, and can stall on the "Press any key to boot from CD…" prompt.
+- Debian preseed and SUSE AutoYaST are **not** supported — they require kernel boot-args
+  the Proxmox API can't set without remastering the install ISO.
+
+### Serial console
+
+`read_serial_console` and `send_serial_console` connect to a VM's serial device via
+Proxmox's term-proxy (the VM needs `serial0: socket`). This is the way to drive
+**serial-only guests** — network appliances (Cisco Nexus 9000v, Arista vEOS, etc.) and any
+OS configured with a serial console — letting an assistant read boot output, answer
+prompts, log in, and run commands without a graphical console.
+
+## Safety
+
+These tools can create, reconfigure, and power VMs. The real, unbypassable access boundary
+is the **Proxmox API token's own role/ACL** — not this server — because Proxmox enforces it
+regardless of what the client or config requests:
+
+- Use a **`PVEAuditor`** token for read-only access: status/list tools work; every write
+  tool gets a `403`.
+- Use a **`PVEVMAdmin`** (+ `Datastore.AllocateSpace`) token only when you want the server
+  to make changes.
+- `download_url_to_storage` needs extra privilege beyond storage allocation (the URL fetch
+  requires `Sys.Modify` on `/`); a privilege-separated token without it gets a `403`. Grant
+  that role or use a non-privsep / `root@pam` token if you need URL downloads.
+
+Optionally set `PROXMOX_CONFIRM_WRITES=true` to require human approval (via MCP elicitation)
+before any mutating tool acts. This needs a client that supports elicitation and is a
+convenience speed bump, not the security boundary.
 
 ## Configuration
 

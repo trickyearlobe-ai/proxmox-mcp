@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/trickyearlobe-ai/proxmox-mcp/config"
@@ -63,6 +64,10 @@ func main() {
 	}
 
 	reg := tools.NewHostRegistry(cfg)
+	if strings.EqualFold(os.Getenv("PROXMOX_CONFIRM_WRITES"), "true") {
+		reg.SetConfirmWrites(true)
+		log.Printf("write confirmation enabled: mutating tools will prompt for approval via elicitation")
+	}
 
 	hostNames := reg.HostNames()
 	hostList := ""
@@ -88,6 +93,11 @@ func main() {
 	tools.RegisterVMTools(server, reg)
 	tools.RegisterContainerTools(server, reg)
 	tools.RegisterStorageTools(server, reg)
+	tools.RegisterProvisioningTools(server, reg)
+	tools.RegisterAnswerMediaTools(server, reg)
+	tools.RegisterWaitTools(server, reg)
+	tools.RegisterConsoleTools(server, reg)
+	tools.RegisterTeardownTools(server, reg)
 	tools.RegisterRawTools(server, reg)
 
 	log.Printf("proxmox-mcp %s starting (%d host(s) configured)", version, len(hostNames))

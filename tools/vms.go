@@ -148,6 +148,9 @@ func vmActionHandler(reg *HostRegistry, action string) func(context.Context, *mc
 		if err != nil {
 			return nil, VMActionOutput{}, err
 		}
+		if err := confirmWrite(ctx, reg, req, fmt.Sprintf("%s_vm: %s VM %d on %s/%s", action, action, input.VMID, host, node)); err != nil {
+			return nil, VMActionOutput{}, err
+		}
 		var upid string
 		if err := client.Post(ctx, fmt.Sprintf("/nodes/%s/qemu/%d/status/%s", node, input.VMID, action), &upid); err != nil {
 			return nil, VMActionOutput{}, fmt.Errorf("failed to %s VM %d: %w", action, input.VMID, err)

@@ -10,8 +10,15 @@ import (
 
 // HostRegistry maps host names to Proxmox API clients.
 type HostRegistry struct {
-	clients     map[string]*proxmox.Client
-	defaultHost string
+	clients       map[string]*proxmox.Client
+	defaultHost   string
+	confirmWrites bool
+}
+
+// SetConfirmWrites enables runtime human confirmation (via MCP elicitation) before
+// any mutating tool acts. See confirmWrite.
+func (r *HostRegistry) SetConfirmWrites(v bool) {
+	r.confirmWrites = v
 }
 
 // NewHostRegistry creates a registry from the loaded config.

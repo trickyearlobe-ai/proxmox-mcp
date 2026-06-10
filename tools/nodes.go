@@ -48,9 +48,9 @@ type GetNodeStatusInput struct {
 }
 
 type NodeStatusOutput struct {
-	Host       string `json:"host" jsonschema:"Proxmox host that was queried"`
-	Node       string `json:"node" jsonschema:"node name"`
-	Status     string `json:"status" jsonschema:"raw JSON status (contains deeply nested dynamic fields)"`
+	Host   string `json:"host" jsonschema:"Proxmox host that was queried"`
+	Node   string `json:"node" jsonschema:"node name"`
+	Status string `json:"status" jsonschema:"raw JSON status (contains deeply nested dynamic fields)"`
 }
 
 func getNodeStatusHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, GetNodeStatusInput) (*mcp.CallToolResult, any, error) {

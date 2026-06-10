@@ -3,8 +3,10 @@ package proxmox
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 )
 
@@ -302,6 +304,135 @@ func TestNewClient_TrimsTrailingSlash(t *testing.T) {
 	client := NewClient("https://pve.example.com:8006/", "tok", "secret", false)
 	if client.baseURL != "https://pve.example.com:8006" {
 		t.Errorf("baseURL = %q, trailing slash should be trimmed", client.baseURL)
+	}
+}
+
+func TestClient_PostForm(t *testing.T) {
+	var gotMethod, gotContentType, gotBody string
+	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotContentType = r.Header.Get("Content-Type")
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		json.NewEncoder(w).Encode(map[string]any{"data": "UPID:pve1:0:0:0:qmcreate:100:root@pam:"})
+	})
+
+	form := url.Values{}
+	form.Set("vmid", "100")
+	form.Set("name", "test-vm")
+
+	var upid string
+	if err := client.PostForm(context.Background(), "/nodes/pve1/qemu", form, &upid); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "POST" {
+		t.Errorf("method = %s, want POST", gotMethod)
+	}
+	if gotContentType != "application/x-www-form-urlencoded" {
+		t.Errorf("Content-Type = %q", gotContentType)
+	}
+	if gotBody != "name=test-vm&vmid=100" {
+		t.Errorf("body = %q, want url-encoded form", gotBody)
+	}
+	if upid == "" {
+		t.Error("upid should not be empty")
+	}
+}
+
+func TestClient_PutForm(t *testing.T) {
+	var gotMethod string
+	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		w.Write([]byte(`{"data": null}`))
+	})
+
+	form := url.Values{}
+	form.Set("disk", "scsi0")
+	form.Set("size", "+10G")
+	if err := client.PutForm(context.Background(), "/nodes/pve1/qemu/100/resize", form, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "PUT" {
+		t.Errorf("method = %s, want PUT", gotMethod)
+	}
+}
+
+func TestClient_PostForm_HTTPError(t *testing.T) {
+	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(403)
+		w.Write([]byte(`permission denied`))
+	})
+	err := client.PostForm(context.Background(), "/nodes/pve1/qemu", url.Values{}, nil)
+	if err == nil {
+		t.Fatal("expected error for 403")
+	}
+	if !containsStr(err.Error(), "403") {
+		t.Errorf("error should contain status: %v", err)
+	}
+}
+
+func TestClient_Delete(t *testing.T) {
+	var gotMethod, gotQuery string
+	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotQuery = r.URL.RawQuery
+		json.NewEncoder(w).Encode(map[string]any{"data": "UPID:pve1:0:0:0:qmdestroy:9000:root@pam:"})
+	})
+
+	var upid string
+	err := client.Delete(context.Background(), "/nodes/pve1/qemu/9000?purge=1", &upid)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "DELETE" {
+		t.Errorf("method = %s, want DELETE", gotMethod)
+	}
+	if gotQuery != "purge=1" {
+		t.Errorf("query = %q, want purge=1", gotQuery)
+	}
+	if upid == "" {
+		t.Error("upid should not be empty")
+	}
+}
+
+func TestClient_Upload(t *testing.T) {
+	var gotContent, gotFilename string
+	var gotFileData []byte
+	var gotPath string
+	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Errorf("ParseMultipartForm: %v", err)
+		}
+		gotContent = r.FormValue("content")
+		f, hdr, err := r.FormFile("filename")
+		if err != nil {
+			t.Errorf("FormFile: %v", err)
+		} else {
+			gotFilename = hdr.Filename
+			gotFileData, _ = io.ReadAll(f)
+		}
+		json.NewEncoder(w).Encode(map[string]any{"data": "UPID:pve1:0:0:0:imgcopy::root@pam:"})
+	})
+
+	upid, err := client.Upload(context.Background(), "pve1", "local", "iso", "answer.iso", []byte("ISODATA"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotPath != "/api2/json/nodes/pve1/storage/local/upload" {
+		t.Errorf("path = %q", gotPath)
+	}
+	if gotContent != "iso" {
+		t.Errorf("content field = %q, want iso", gotContent)
+	}
+	if gotFilename != "answer.iso" {
+		t.Errorf("filename = %q", gotFilename)
+	}
+	if string(gotFileData) != "ISODATA" {
+		t.Errorf("file data = %q", gotFileData)
+	}
+	if upid == "" {
+		t.Error("upid should not be empty")
 	}
 }
 

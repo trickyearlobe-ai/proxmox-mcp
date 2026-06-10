@@ -146,6 +146,9 @@ func containerActionHandler(reg *HostRegistry, action string) func(context.Conte
 		if err != nil {
 			return nil, ContainerActionOutput{}, err
 		}
+		if err := confirmWrite(ctx, reg, req, fmt.Sprintf("%s_container: %s container %d on %s/%s", action, action, input.VMID, host, node)); err != nil {
+			return nil, ContainerActionOutput{}, err
+		}
 		var upid string
 		if err := client.Post(ctx, fmt.Sprintf("/nodes/%s/lxc/%d/status/%s", node, input.VMID, action), &upid); err != nil {
 			return nil, ContainerActionOutput{}, fmt.Errorf("failed to %s container %d: %w", action, input.VMID, err)
