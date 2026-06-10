@@ -4,7 +4,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for [P
 
 ## Features
 
-- **35 tools** covering cluster, node, VM, container, storage, task, provisioning, teardown, serial console, and raw API access
+- **36 tools** covering cluster, node, VM, container, storage, task, provisioning, teardown, serial console, and raw API access
 - **VM provisioning & unattended OS install** — create VMs and install an OS via cloud-init, kickstart, Ubuntu autoinstall, or Windows autounattend
 - **Serial console access** — read from and type into a VM's serial console (drive serial-only guests like network appliances)
 - **Multi-host support** — manage multiple Proxmox clusters from a single server
@@ -60,6 +60,7 @@ proxmox-mcp --install
 | `wait_for_guest_agent` | Block until the guest agent responds (emits progress), then return its IPs |
 | `read_serial_console` | Read output from a VM's serial console (requires a serial device) |
 | `send_serial_console` | Type into a VM's serial console and capture the response |
+| `send_key` | Press keys at a VM's VGA console (boot prompts, BIOS, ctrl-alt-delete) |
 | `delete_vm` | Permanently destroy a stopped VM and its disks |
 | `delete_container` | Permanently destroy a stopped LXC container and its disks |
 | `delete_storage_content` | Delete a single volume (ISO, image, backup) from a storage |
@@ -104,8 +105,9 @@ Notes:
   `console=ttyS0` to the bootloader and give the VM a `serial0: socket` device.
 - Put `qemu-guest-agent` in the answer file's package list (it's in AppStream / universe,
   not on minimal install ISOs — add the online repo) so `get_guest_agent_info` works.
-- Windows also needs a `virtio-win.iso` attached as a third CD, with driver paths in
-  `autounattend.xml`, and can stall on the "Press any key to boot from CD…" prompt.
+- Windows also needs a `virtio-win.iso` attached as a third CD (it carries the storage/net
+  drivers and the `qemu-ga` MSI), and shows a "Press any key to boot from CD…" prompt on
+  first boot — clear it with `send_key` (`keys: ["ret"]`).
 - Debian preseed and SUSE AutoYaST are **not** supported — they require kernel boot-args
   the Proxmox API can't set without remastering the install ISO.
 
@@ -127,9 +129,9 @@ regardless of what the client or config requests:
   tool gets a `403`.
 - Use a **`PVEVMAdmin`** (+ `Datastore.AllocateSpace`) token only when you want the server
   to make changes.
-- `download_url_to_storage` needs extra privilege beyond storage allocation (the URL fetch
-  requires `Sys.Modify` on `/`); a privilege-separated token without it gets a `403`. Grant
-  that role or use a non-privsep / `root@pam` token if you need URL downloads.
+- `download_url_to_storage` and `send_key` need extra privilege (`Sys.Modify` on `/`); a
+  privilege-separated token without it gets a `403`. Grant that role or use a non-privsep /
+  `root@pam` token if you need URL downloads or console keystrokes.
 
 Optionally set `PROXMOX_CONFIRM_WRITES=true` to require human approval (via MCP elicitation)
 before any mutating tool acts. This needs a client that supports elicitation and is a

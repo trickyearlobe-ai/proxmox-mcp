@@ -85,6 +85,53 @@ func sendConsoleHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRe
 	}
 }
 
+// -- send_key --
+
+type SendKeyInput struct {
+	Host   string   `json:"host,omitempty" jsonschema:"Proxmox host name from config (uses default if omitted)"`
+	Node   string   `json:"node,omitempty" jsonschema:"node name (optional — auto-resolved from VMID if omitted)"`
+	VMID   int      `json:"vmid" jsonschema:"VM ID,required"`
+	Keys   []string `json:"keys" jsonschema:"ordered list of keys to press at the VGA console, each a QEMU sendkey spec. Single keys: ret, esc, spc, tab, up, down, left, right, f1-f12, a-z, 0-9. Combos joined with '-': ctrl-alt-delete, alt-f4, shift-1. Each list entry is one keystroke sent in order,required"`
+	HoldMs int      `json:"hold_ms,omitempty" jsonschema:"optional milliseconds to hold each key"`
+}
+
+type SendKeyOutput struct {
+	Host string   `json:"host" jsonschema:"Proxmox host that was queried"`
+	Node string   `json:"node" jsonschema:"node hosting the VM"`
+	VMID int      `json:"vmid" jsonschema:"VM ID"`
+	Sent []string `json:"sent" jsonschema:"keys that were sent"`
+}
+
+func sendKeyHandler(reg *HostRegistry) func(context.Context, *mcp.CallToolRequest, SendKeyInput) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input SendKeyInput) (*mcp.CallToolResult, any, error) {
+		client, host, err := reg.GetClient(input.Host)
+		if err != nil {
+			return nil, SendKeyOutput{}, err
+		}
+		node, err := resolveVMNode(ctx, client, input.Node, input.VMID)
+		if err != nil {
+			return nil, SendKeyOutput{}, err
+		}
+		if len(input.Keys) == 0 {
+			return nil, SendKeyOutput{}, fmt.Errorf("keys must not be empty")
+		}
+		if err := confirmWrite(ctx, reg, req, fmt.Sprintf("send_key: press %v on VM %d console (%s/%s)", input.Keys, input.VMID, host, node)); err != nil {
+			return nil, SendKeyOutput{}, err
+		}
+
+		for _, k := range input.Keys {
+			cmd := "sendkey " + k
+			if input.HoldMs > 0 {
+				cmd = fmt.Sprintf("sendkey %s %d", k, input.HoldMs)
+			}
+			if _, err := client.MonitorCommand(ctx, node, input.VMID, cmd); err != nil {
+				return nil, SendKeyOutput{}, fmt.Errorf("sending key %q: %w", k, err)
+			}
+		}
+		return nil, SendKeyOutput{Host: host, Node: node, VMID: input.VMID, Sent: input.Keys}, nil
+	}
+}
+
 func RegisterConsoleTools(server *mcp.Server, reg *HostRegistry) {
 	mcp.AddTool[ReadConsoleInput, any](server, &mcp.Tool{
 		Name: "read_serial_console",
@@ -97,4 +144,10 @@ func RegisterConsoleTools(server *mcp.Server, reg *HostRegistry) {
 		Description: "Type input into a VM's serial console (requires a serial device) and capture the response. " +
 			"Use a trailing newline to press Enter. Lets you answer prompts, log in, and run commands on serial-only guests.",
 	}, sendConsoleHandler(reg))
+
+	mcp.AddTool[SendKeyInput, any](server, &mcp.Tool{
+		Name: "send_key",
+		Description: "Press keys at a VM's VGA console via the QEMU monitor (sendkey). Use for pre-OS / graphical interaction the serial console can't reach: " +
+			"the 'Press any key to boot from CD' prompt (send 'ret'), BIOS/boot menus, GRUB, or ctrl-alt-delete. For typing text into a serial guest, use send_serial_console instead.",
+	}, sendKeyHandler(reg))
 }

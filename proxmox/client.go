@@ -63,6 +63,17 @@ func (c *Client) Delete(ctx context.Context, path string, dest any) error {
 	return c.do(ctx, http.MethodDelete, path, dest)
 }
 
+// MonitorCommand runs a QEMU monitor (HMP) command against a VM and returns its
+// text output. Used for low-level actions like sendkey or screendump.
+func (c *Client) MonitorCommand(ctx context.Context, node string, vmid int, command string) (string, error) {
+	var out string
+	path := fmt.Sprintf("/nodes/%s/qemu/%d/monitor", node, vmid)
+	if err := c.PostForm(ctx, path, url.Values{"command": {command}}, &out); err != nil {
+		return "", err
+	}
+	return out, nil
+}
+
 func (c *Client) do(ctx context.Context, method, path string, dest any) error {
 	url := c.baseURL + "/api2/json" + path
 
