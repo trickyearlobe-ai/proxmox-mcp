@@ -102,6 +102,15 @@ bump-major: ## Bump major version (v0.2.0 → v1.0.0) and push tag
 push-tags: ## Push all tags to origin
 	git push origin --tags
 
+.PHONY: release-patch
+release-patch: bump-patch push-tags ## Bump patch version and push the tag
+
+.PHONY: release-minor
+release-minor: bump-minor push-tags ## Bump minor version and push the tag
+
+.PHONY: release-major
+release-major: bump-major push-tags ## Bump major version and push the tag
+
 # ── Git hooks ─────────────────────────────────────────────────────────
 .PHONY: setup-hooks
 setup-hooks: ## Configure git to use the project's secret-detection hooks
